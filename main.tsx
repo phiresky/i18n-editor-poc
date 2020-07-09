@@ -15,11 +15,14 @@ function getKey(e: AstEle) {
   return res;
 }
 
-type AstEle = (
+type AstEle =
   | { type: "list"; content: AstEle[] }
-  | { type: "text"; text: string }
-  | { type: "object"; tag: string; content: AstEle }
-) & { focus?: "start" | "end" };
+  | { type: "text"; text: string; focus?: "start" | "end" }
+  | {
+      type: "object";
+      tag: string;
+      content: { type: "list"; content: AstEle[] };
+    };
 
 function normalizeList(ineles: AstEle[]) {
   const outeles = ineles
@@ -40,8 +43,8 @@ function normalizeList(ineles: AstEle[]) {
     }, [])
     .map(normalize);
   // insert empty text nodes
-  for (let i = 1; i < outeles.length; i++) {
-    if (outeles[i - 1].type !== "text" && outeles[i].type !== "text") {
+  for (let i = 0; i < outeles.length + 1; i++) {
+    if (outeles[i - 1]?.type !== "text" && outeles[i]?.type !== "text") {
       outeles.splice(i, 0, { type: "text", text: "" });
     }
   }
@@ -53,6 +56,12 @@ function normalize(ele: AstEle): AstEle {
       return {
         type: "list",
         content: normalizeList(ele.content),
+      };
+    case "object":
+      return {
+        type: "object",
+        tag: ele.tag,
+        content: normalize(ele.content) as { type: "list"; content: AstEle[] },
       };
     default:
       return ele;
@@ -85,7 +94,11 @@ class AstEleUI extends React.Component<{
     this.componentWillUnmount = autorun(() => this.focus());
   }
   focus() {
-    if(this.e.current && this.props.ele.focus) {
+    if (
+      this.e.current &&
+      this.props.ele.type === "text" &&
+      this.props.ele.focus
+    ) {
       this.e.current.focus();
     }
   }
@@ -121,7 +134,10 @@ class AstEleUI extends React.Component<{
                       {
                         type: "object",
                         tag: match[2],
-                        content: { type: "text", text: "", focus: "end" },
+                        content: {
+                          type: "list",
+                          content: [{ type: "text", text: "", focus: "end" }],
+                        },
                       },
                       { type: "text", text: match[3] },
                     ],
@@ -176,7 +192,11 @@ class AstEleUI extends React.Component<{
             </div>
             <AstEleUI
               ele={ele.content}
-              replace={(e) => (ele.content = e)}
+              replace={(e) =>
+                e.type === "list"
+                  ? (ele.content = e)
+                  : (ele.content = { type: "list", content: [e] })
+              }
               backspace={() =>
                 replace(
                   normalize({
@@ -212,57 +232,71 @@ class AstEleUI extends React.Component<{
 
 @observer
 class UI extends React.Component {
-  @observable ast: AstEle = {
+  @observable ast: AstEle = normalize({
     type: "list",
     content: [
       {
         type: "object",
         tag: "Span",
-        content: { type: "text", text: "Only bet after color" },
+        content: {
+          type: "list",
+          content: [{ type: "text", text: "Only bet after color" }],
+        },
       },
-      { type: "text", text: "" },
-
       {
         type: "object",
         tag: "Div",
         content: {
-          type: "object",
-          tag: "Select",
-          content: {
-            type: "list",
-            content: [
-              {
-                type: "object",
-                tag: "Option1",
-                content: { type: "text", text: "Has not come up" },
+          type: "list",
+          content: [
+            {
+              type: "object",
+              tag: "Select",
+              content: {
+                type: "list",
+                content: [
+                  {
+                    type: "object",
+                    tag: "Option1",
+                    content: {
+                      type: "list",
+                      content: [{ type: "text", text: "Has not come up" }],
+                    },
+                  },
+                  {
+                    type: "object",
+                    tag: "Option2",
+                    content: {
+                      type: "list",
+                      content: [{ type: "text", text: "Has not come up" }],
+                    },
+                  },
+                ],
               },
-              { type: "text", text: "" },
-              {
-                type: "object",
-                tag: "Option2",
-                content: { type: "text", text: "Has not come up" },
-              },
-              { type: "text", text: "" },
-            ],
-          },
+            },
+          ],
         },
       },
-      { type: "text", text: "" },
       {
         type: "object",
         tag: "Span",
-        content: { type: "text", text: " for " },
+        content: { type: "list", content: [{ type: "text", text: " for " }] },
       },
-      { type: "text", text: "" },
-      { type: "object", tag: "Input", content: { type: "text", text: "" } },
-      { type: "text", text: "" },
+      {
+        type: "object",
+        tag: "Input",
+        content: { type: "list", content: [{ type: "text", text: "" }] },
+      },
       {
         type: "object",
         tag: "Span",
-        content: { type: "text", text: "games in a row" },
+        content: {
+          type: "list",
+          content: [{ type: "text", text: "games in a row" }],
+        },
       },
     ],
-  };
+  });
   render() {
     Object.assign(window, { ast: this.ast });
     return (
