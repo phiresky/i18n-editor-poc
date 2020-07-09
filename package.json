@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "dev": "yarn parcel serve --public-url . index.html",
+    "build": "yarn parcel build --public-url . index.html"
+  },
   "dependencies": {
     "mobx": "^5.15.4",
     "mobx-react": "^6.2.2",
