@@ -2,13 +2,13 @@ import { render } from "react-dom";
 import * as React from "react";
 import { observable } from "mobx";
 import { observer } from "mobx-react";
-import { getNextId, getMapLikeKeys } from "mobx/lib/internal";
+import { autorun } from "mobx";
 
 const keyCache = new WeakMap<AstEle, number>();
 let uniqueId = 1;
 function getKey(e: AstEle) {
   let res = keyCache.get(e);
-  if(!res) {
+  if (!res) {
     res = uniqueId++;
     keyCache.set(e, res);
   }
@@ -19,7 +19,7 @@ type AstEle = (
   | { type: "list"; content: AstEle[] }
   | { type: "text"; text: string }
   | { type: "object"; tag: string; content: AstEle }
-) & { focus?: true };
+) & { focus?: "start" | "end" };
 
 function normalizeList(ineles: AstEle[]) {
   const outeles = ineles
@@ -28,7 +28,14 @@ function normalizeList(ineles: AstEle[]) {
     .reduce<AstEle[]>((olds, cur) => {
       const prev = olds.length > 0 ? olds[olds.length - 1] : undefined;
       return prev?.type === "text" && cur.type === "text"
-        ? [...olds.slice(0, -1), { type: "text", text: prev.text + cur.text, focus: prev.focus || cur.focus }]
+        ? [
+            ...olds.slice(0, -1),
+            {
+              type: "text",
+              text: prev.text + cur.text,
+              focus: prev.focus || cur.focus,
+            },
+          ]
         : [...olds, cur];
     }, [])
     .map(normalize);
@@ -51,12 +58,37 @@ function normalize(ele: AstEle): AstEle {
       return ele;
   }
 }
+function focusEnd(ele: AstEle): boolean {
+  switch (ele.type) {
+    case "text": {
+      ele.focus = "end";
+      console.log("focussing on", ele);
+      return true;
+    }
+    case "list": {
+      return !!ele.content.reverse().find((e) => focusEnd(e));
+    }
+    case "object": {
+      return focusEnd(ele.content);
+    }
+  }
+}
 @observer
 class AstEleUI extends React.Component<{
   ele: AstEle;
   replace: (e: AstEle) => void;
   backspace: () => void;
 }> {
+  @observable
+  e = React.createRef<HTMLInputElement>();
+  componentDidMount() {
+    this.componentWillUnmount = autorun(() => this.focus());
+  }
+  focus() {
+    if(this.e.current && this.props.ele.focus) {
+      this.e.current.focus();
+    }
+  }
   render(): JSX.Element {
     const { ele, replace, backspace } = this.props;
     switch (ele.type) {
@@ -65,7 +97,7 @@ class AstEleUI extends React.Component<{
           <input
             value={ele.text}
             style={{ width: ele.text.length * 1.2 + "ch" }}
-            ref={e => ele.focus && (delete ele.focus, e?.focus())}
+            ref={this.e}
             onKeyDown={(e) => {
               const isAtStart =
                 e.currentTarget.selectionStart ===
@@ -89,7 +121,7 @@ class AstEleUI extends React.Component<{
                       {
                         type: "object",
                         tag: match[2],
-                        content: { type: "text", text: "", focus: true },
+                        content: { type: "text", text: "", focus: "end" },
                       },
                       { type: "text", text: match[3] },
                     ],
@@ -119,7 +151,11 @@ class AstEleUI extends React.Component<{
                   if (i === 0) {
                     backspace();
                   } else {
-                    console.log("backspace within list center not implemented")
+                    focusEnd({
+                      type: "list",
+                      content: ele.content.slice(0, i),
+                    });
+                    console.log("backspace within list center not implemented");
                     /*const [removed] = ele.content.splice(i, 1);
                     ele.content[i - 1] = mergeAsText(
                       ele.content[i - 1],
@@ -146,7 +182,7 @@ class AstEleUI extends React.Component<{
                   normalize({
                     type: "list",
                     content: [
-                      { type: "text", text: `{${ele.tag}`, focus: true },
+                      { type: "text", text: `{${ele.tag}`, focus: "end" },
                       ele.content,
                     ],
                   })

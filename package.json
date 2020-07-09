@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "dev": "yarn parcel serve --public-url . index.html",
+    "dev": "yarn parcel serve index.html",
     "build": "yarn parcel build --public-url . index.html"
   },
   "dependencies": {
