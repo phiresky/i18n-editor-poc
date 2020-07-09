@@ -99,6 +99,7 @@ class AstEleUI extends React.Component<{
       this.props.ele.type === "text" &&
       this.props.ele.focus
     ) {
+      delete this.props.ele.focus;
       this.e.current.focus();
     }
   }
